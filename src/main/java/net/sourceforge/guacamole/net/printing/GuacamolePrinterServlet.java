@@ -67,13 +67,13 @@ public class GuacamolePrinterServlet extends HttpServlet {
     private Logger logger = LoggerFactory.getLogger(GuacamoleHTTPTunnelServlet.class);
 
 	/**
-	 * Get the PDF.
-	 * Issue a 404 error if the document does not exists and a n
+	 * Get the PDF via HTTP GET
+	 *
+	 * Code 500 on bad URL, 404 for non-existent job.
 	 */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
 		String path = request.getPathInfo();
-		logger.info("PATHINFO {}", request.getPathInfo());
 		String jobName = "";
 		if (path.startsWith("/job/") && path.endsWith("/get") ) {
 			try {
