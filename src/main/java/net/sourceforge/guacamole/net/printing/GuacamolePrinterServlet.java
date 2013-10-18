@@ -73,12 +73,12 @@ public class GuacamolePrinterServlet extends HttpServlet {
 	 * Format : URL : /opcode/jobId
 	 * Code 500 on bad URL, 404 for non-existent job.
 	 */
-    @Override
+	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
 		String path = request.getPathInfo();
 
 		if(path == null) {
-			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request: no request");
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request : no request");
 		}
 
 		String path_split[] = path.toLowerCase().split("/"); /* Match "/" or "//" or "///" or ... */
