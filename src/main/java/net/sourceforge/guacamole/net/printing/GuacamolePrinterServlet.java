@@ -118,6 +118,7 @@ public class GuacamolePrinterServlet extends HttpServlet {
 			throw new ServletException(message);
 		} catch(java.lang.IllegalStateException e) {
 			/* Ok, no problem */
+			/* See http://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletResponse.html#sendError%28int,%20java.lang.String%29 */
 		}
 	}
 
