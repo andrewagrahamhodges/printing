@@ -75,6 +75,15 @@ public class GuacamolePrinterServlet extends HttpServlet {
 	 */
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
+		/* Get context */
+		HttpSession httpSession = request.getSession(false);
+
+		if(httpSession == null) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - no session");
+			return;
+		}
+
+		/* Get path */
 		String path = request.getPathInfo();
 
 		if(path == null) {
@@ -102,9 +111,9 @@ public class GuacamolePrinterServlet extends HttpServlet {
 		}
 
 		if(opcode.equals("get")) {
-			this.opcode_get(request, response, job_id);
+			this.opcode_get(request, response, httpSession, job_id);
 		} else if(opcode.equals("clear")) {
-			this.opcode_clear(request, response, job_id);
+			this.opcode_clear(request, response, httpSession, job_id);
 		} else {
 			sendError(response, response.SC_FORBIDDEN , "Printer - invalid operation : " + opcode);
 			return;
@@ -125,15 +134,7 @@ public class GuacamolePrinterServlet extends HttpServlet {
 	/** 
 	 * Sends a PDF file (created by guacd) to the client.
 	 */
-	protected void opcode_get(HttpServletRequest request, HttpServletResponse response, String job_id) throws ServletException {
-		/* Get context */
-		HttpSession httpSession = request.getSession(false);
-
-		if(httpSession == null) {
-			sendError(response, response.SC_FORBIDDEN , "Printer - no session");
-			return;
-		}
-
+	protected void opcode_get(HttpServletRequest request, HttpServletResponse response, HttpSession httpSession, String job_id) throws ServletException {
 		/* Get config */
 		GuacamoleConfiguration config = ((Map<String, GuacamoleConfiguration>)(httpSession.getAttribute("GUAC_CONFIGS"))).get("0");
 
@@ -175,7 +176,7 @@ public class GuacamolePrinterServlet extends HttpServlet {
 		}
 	}
 
-	protected void opcode_clear(HttpServletRequest request, HttpServletResponse response, String job_id) throws ServletException {
+	protected void opcode_clear(HttpServletRequest request, HttpServletResponse response, HttpSession httpSession, String job_id) throws ServletException {
 		sendError(response, response.SC_FORBIDDEN , "Printer - Not implemented");
 		return;
 	}
