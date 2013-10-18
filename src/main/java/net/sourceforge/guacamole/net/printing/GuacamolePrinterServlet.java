@@ -75,41 +75,62 @@ public class GuacamolePrinterServlet extends HttpServlet {
 	 */
     @Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
-		String path = request.getPathInfo().toLowerCase();
-		String path_split[] = path.split("/"); /* Match "/" or "//" or "///" or ... */
-		String jobName = "";
+		String path = request.getPathInfo();
 
-		if(path_split.length != 3) {
-			throw new ServletException("Printer - invalid request: " + path + " (path length = "+path_split.length+")");
+		if(path == null) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request: no request");
 		}
 
-		String opcode = path_split[1];
-		String job_id = path_split[2];
+		String path_split[] = path.toLowerCase().split("/"); /* Match "/" or "//" or "///" or ... */
+		String opcode = null;
+		String job_id = null;
 
 		try {
-			if(opcode.equals("get")) {
-				this.opcode_get(request, response, job_id);
-			} else if(opcode.equals("clear")) {
-				this.opcode_clear(request, response, job_id);
-			} else {
-				throw new ServletException("Printer - invalid operation : " + opcode);
+			if(path_split.length != 3) {
+				throw new Exception();
+			}
+
+			opcode = path_split[1];
+			job_id = path_split[2];
+
+			if(opcode == null || job_id == null) {
+				throw new Exception();
 			}
 		} catch(Exception e) {
-			logger.error("Exception : can't execute "+request.getPathInfo().toLowerCase());
-			e.printStackTrace();
-			throw new ServletException("Printer - Error");
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request: path length error");
+			return;
+		}
+
+		if(opcode.equals("get")) {
+			this.opcode_get(request, response, job_id);
+		} else if(opcode.equals("clear")) {
+			this.opcode_clear(request, response, job_id);
+		} else {
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid operation : " + opcode);
+			return;
+		}
+	}
+
+	protected void sendError(HttpServletResponse response, int code, String message) throws ServletException {
+		try {
+			response.sendError(code, message);
+		} catch(java.io.IOException e) {
+			throw new ServletException(message);
+		} catch(java.lang.IllegalStateException e) {
+			/* Ok, no problem */
 		}
 	}
 
 	/** 
 	 * Sends a PDF file (created by guacd) to the client.
 	 */
-	protected void opcode_get(HttpServletRequest request, HttpServletResponse response, String job_id) throws Exception {
+	protected void opcode_get(HttpServletRequest request, HttpServletResponse response, String job_id) throws ServletException {
 		/* Get context */
 		HttpSession httpSession = request.getSession(false);
 
 		if(httpSession == null) {
-			throw new ServletException("Printer - no session");
+			sendError(response, response.SC_FORBIDDEN , "Printer - no session");
+			return;
 		}
 
 		/* Get config */
@@ -125,25 +146,36 @@ public class GuacamolePrinterServlet extends HttpServlet {
 		File file = new File(path);
 
 		if(! file.exists()) {
-			response.sendError(response.SC_NOT_FOUND, "Printer - no such file : "+ username + "/" + job_id + ".pdf");
+			sendError(response, response.SC_NOT_FOUND, "Printer - no such file : "+ username + "/" + job_id + ".pdf");
+			return;
 		}
 
 		/* Send the file over HTTP */
 		response.setContentType("application/pdf");
 		response.setContentLength((int) file.length()); /* file.length() is a long */
 		
-		FileInputStream in = new FileInputStream(file);
-		OutputStream out = response.getOutputStream();
+		FileInputStream in = null;
+		OutputStream out = null;
+
+		try {
+			in = new FileInputStream(file);
+			out = response.getOutputStream();
 		
-		byte[] buf = new byte[1024];
-		int count = 0;
-		while ((count = in.read(buf)) >= 0) {
-			out.write(buf, 0, count);
+			byte[] buf = new byte[1024];
+			int count = 0;
+			while ((count = in.read(buf)) >= 0) {
+				out.write(buf, 0, count);
+			}
+			in.close();
+			out.close();
+		} catch(Exception e) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - IOException");
+			return;
 		}
-		in.close();
-		out.close();
 	}
 
-	protected void opcode_clear(HttpServletRequest request, HttpServletResponse response, String job_id) throws Exception {
+	protected void opcode_clear(HttpServletRequest request, HttpServletResponse response, String job_id) throws ServletException {
+		sendError(response, response.SC_FORBIDDEN , "Printer - Not implemented");
+		return;
 	}
 }
