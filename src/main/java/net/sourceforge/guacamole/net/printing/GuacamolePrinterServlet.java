@@ -87,17 +87,17 @@ public class GuacamolePrinterServlet extends HttpServlet {
 
 		try {
 			if(path_split.length != 3) {
-				throw new Exception();
+				throw new Exception("Path length error");
 			}
 
 			opcode = path_split[1];
 			job_id = path_split[2];
 
 			if(opcode == null || job_id == null) {
-				throw new Exception();
+				throw new Exception("Path content error");
 			}
 		} catch(Exception e) {
-			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request: path length error");
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request : path format error : "+e.getMessage());
 			return;
 		}
 
@@ -169,7 +169,7 @@ public class GuacamolePrinterServlet extends HttpServlet {
 			in.close();
 			out.close();
 		} catch(Exception e) {
-			sendError(response, response.SC_FORBIDDEN , "Printer - IOException");
+			sendError(response, response.SC_FORBIDDEN , "Printer - IOException : "+e.getMessage());
 			return;
 		}
 	}
