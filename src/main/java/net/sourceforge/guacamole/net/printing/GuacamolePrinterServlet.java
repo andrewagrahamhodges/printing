@@ -56,7 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.sourceforge.guacamole.protocol.GuacamoleConfiguration;  
- import net.sourceforge.guacamole.servlet.GuacamoleHTTPTunnelServlet;
+import net.sourceforge.guacamole.servlet.GuacamoleHTTPTunnelServlet;
 /**
  * A HttpServlet to fetch printed jobs in PDF format and handle printing in general
  *
@@ -64,67 +64,120 @@ import net.sourceforge.guacamole.protocol.GuacamoleConfiguration;
  */
 public class GuacamolePrinterServlet extends HttpServlet {
 
-    private Logger logger = LoggerFactory.getLogger(GuacamoleHTTPTunnelServlet.class);
+	private Logger logger = LoggerFactory.getLogger(GuacamoleHTTPTunnelServlet.class);
+
+	public static final String FILE_PATH = "/var/spool/ulteo/pdf-printer";
 
 	/**
 	 * Get the PDF via HTTP GET
-	 *
+	 * Format : URL : /opcode/jobId
 	 * Code 500 on bad URL, 404 for non-existent job.
 	 */
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
+	@Override
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
+		/* Get context */
+		HttpSession httpSession = request.getSession(false);
+
+		if(httpSession == null) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - no session");
+			return;
+		}
+
+		/* Get path */
 		String path = request.getPathInfo();
-		String jobName = "";
-		if (path.startsWith("/job/") && path.endsWith("/get") ) {
-			try {
-				int getPos = path.lastIndexOf("/get");
-				jobName = path.substring(5, getPos);
-				
-				this.sendJobToBrowser(request, response, jobName);
-			} catch (Exception e) {
-				logger.info("Failed serving {}", jobName);
-				throw new ServletException("Failed serving "+jobName);
+
+		if(path == null) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request : no request");
+		}
+
+		String path_split[] = path.toLowerCase().split("/"); /* Match "/" or "//" or "///" or ... */
+		String opcode = null;
+		String job_id = null;
+
+		try {
+			if(path_split.length != 3) {
+				throw new Exception("Path length error");
 			}
+
+			opcode = path_split[1];
+			job_id = path_split[2];
+
+			if(opcode == null || job_id == null) {
+				throw new Exception("Path content error");
+			}
+		} catch(Exception e) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid request : path format error : "+e.getMessage());
+			return;
+		}
+
+		if(opcode.equals("get")) {
+			this.opcode_get(request, response, httpSession, job_id);
+		} else if(opcode.equals("clear")) {
+			this.opcode_clear(request, response, httpSession, job_id);
 		} else {
-			throw new ServletException("Invalid printer operation: " + request.getPathInfo());
+			sendError(response, response.SC_FORBIDDEN , "Printer - invalid operation : " + opcode);
+			return;
+		}
+	}
+
+	protected void sendError(HttpServletResponse response, int code, String message) throws ServletException {
+		try {
+			response.sendError(code, message);
+		} catch(java.io.IOException e) {
+			throw new ServletException(message);
+		} catch(java.lang.IllegalStateException e) {
+			/* Ok, no problem */
+			/* See http://docs.oracle.com/javaee/6/api/javax/servlet/http/HttpServletResponse.html#sendError%28int,%20java.lang.String%29 */
 		}
 	}
 
 	/** 
 	 * Sends a PDF file (created by guacd) to the client.
 	 */
-    protected void sendJobToBrowser(HttpServletRequest request, HttpServletResponse response, String jobName) throws Exception {
-		HttpSession httpSession = request.getSession(true);
-		Map<String, GuacamoleConfiguration> configs = (Map<String, GuacamoleConfiguration>)(httpSession.getAttribute("GUAC_CONFIGS"));
+	protected void opcode_get(HttpServletRequest request, HttpServletResponse response, HttpSession httpSession, String job_id) throws ServletException {
+		/* Get config */
+		GuacamoleConfiguration config = ((Map<String, GuacamoleConfiguration>)(httpSession.getAttribute("GUAC_CONFIGS"))).get("0");
 
-		//FIXME: configure inside a properties file
-		String pdfSpoolPath = new String("/var/spool/ulteo/pdf-printer/" + configs.get("DEFAULT").getParameter("username"));
-		String pdfFileName = jobName + ".pdf";
+		/* Get username */
+		String username = config.getParameter("username");
+
+		/* Build pdf file path */
+		String path = GuacamolePrinterServlet.FILE_PATH + "/" + username + "/" + job_id + ".pdf";
 		
-		// Checks
-		if (!new File(pdfSpoolPath).exists()) {
-			throw new GuacamoleServerException("Spool directory "+pdfSpoolPath+" does not exists");
+		/* Open as file */
+		File file = new File(path);
+
+		if(! file.exists()) {
+			sendError(response, response.SC_NOT_FOUND, "Printer - no such file : "+ username + "/" + job_id + ".pdf");
+			return;
 		}
-		File jobPdfFile = new File(pdfSpoolPath, pdfFileName);
-		if  (! jobPdfFile.exists()) {
-			response.sendError(response.SC_NOT_FOUND,
-							   "Unexistent printjob : "+ pdfFileName);
-		}
-		
-		logger.info("serving {} print job over HTTP", jobPdfFile.toString());
-		// Send the file over HTTP
+
+		/* Send the file over HTTP */
 		response.setContentType("application/pdf");
-		response.setContentLength((int)jobPdfFile.length());
+		response.setContentLength((int) file.length()); /* file.length() is a long */
 		
-		FileInputStream in = new FileInputStream(jobPdfFile);
-		OutputStream out = response.getOutputStream();
+		FileInputStream in = null;
+		OutputStream out = null;
+
+		try {
+			in = new FileInputStream(file);
+			out = response.getOutputStream();
 		
-		byte[] buf = new byte[1024];
-		int count = 0;
-		while ((count = in.read(buf)) >= 0) {
-			out.write(buf, 0, count);
+			byte[] buf = new byte[1024];
+			int count = 0;
+			while ((count = in.read(buf)) >= 0) {
+				out.write(buf, 0, count);
+			}
+			in.close();
+			out.close();
+		} catch(Exception e) {
+			sendError(response, response.SC_FORBIDDEN , "Printer - IOException : "+e.getMessage());
+			return;
 		}
-		in.close();
-		out.close();
+	}
+
+	protected void opcode_clear(HttpServletRequest request, HttpServletResponse response, HttpSession httpSession, String job_id) throws ServletException {
+		sendError(response, response.SC_FORBIDDEN , "Printer - Not implemented");
+		return;
 	}
 }
